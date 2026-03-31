@@ -36,6 +36,7 @@ export default function SelectionModal({
                   const opt = findItemById(optObj.itemId);
                   if(!opt) return null;
                   const isSelected = group.type === 'required' ? modalSelections.required[group.id] === opt.id : modalSelections.optional.includes(opt.id);
+                  const amt = optObj.amount || 1;
 
                   return (
                     <button key={opt.id} onClick={() => {
@@ -50,11 +51,11 @@ export default function SelectionModal({
                          {group.type === 'optional' && <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-slate-300'}`}>{isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}</div>}
                          {group.type === 'required' && <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-black' : 'border-slate-300'}`}>{isSelected && <div className="w-3 h-3 bg-black rounded-full" />}</div>}
                          <div>
-                           <div className="text-lg font-black uppercase text-slate-900">{opt.name}</div>
+                           <div className="text-lg font-black uppercase text-slate-900">{amt > 1 ? `${amt}x ` : ''}{opt.name}</div>
                            {optObj.recommended && group.type === 'required' && !isSelected && <div className="text-[9px] text-sky-500 font-black tracking-widest uppercase mt-1 flex items-center gap-1">Foretrukket / Anbefalt</div>}
                          </div>
                       </div>
-                      <span className="text-[10px] uppercase font-black px-3 py-1 bg-slate-100 rounded-full border border-slate-200">+{opt.price},-</span>
+                      <span className="text-[10px] uppercase font-black px-3 py-1 bg-slate-100 rounded-full border border-slate-200">+{opt.price * amt},-</span>
                     </button>
                   );
                 })}

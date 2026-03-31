@@ -89,7 +89,14 @@ export default function EditingModal({
                           if(!itm) return null;
                           return (
                             <div key={opt.itemId} className={`flex items-center justify-between p-2.5 rounded-xl border ${opt.recommended ? 'bg-black text-white border-black' : 'bg-slate-50 border-slate-100'}`}>
-                              <div className="text-[11px] font-bold flex-1 truncate">{itm.name}</div>
+                              <div className="text-[11px] font-bold flex-1 truncate flex items-center gap-2">
+                                <input type="number" min="1" className="w-12 p-1 text-center border border-slate-200 rounded-lg text-xs" value={opt.amount || 1} onChange={(e) => {
+                                      const grps = [...editingModal.item.accessoryGroups];
+                                      grps[grpIdx].options[optIdx].amount = parseInt(e.target.value) || 1;
+                                      setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: grps }});
+                                }} />
+                                <span>x {itm.name}</span>
+                              </div>
                               <div className="flex items-center gap-3">
                                  <label className="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" className="hidden" checked={opt.recommended} onChange={(e) => {
@@ -115,7 +122,7 @@ export default function EditingModal({
                               if(!e.target.value) return;
                               const grps = [...editingModal.item.accessoryGroups];
                               if(!grps[grpIdx].options.find(o => o.itemId === e.target.value)) {
-                                 grps[grpIdx].options.push({ itemId: e.target.value, recommended: grps[grpIdx].options.length === 0 });
+                                 grps[grpIdx].options.push({ itemId: e.target.value, recommended: grps[grpIdx].options.length === 0, amount: 1 });
                                  setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: grps }});
                               }
                           }}>

@@ -116,13 +116,19 @@ export default function App() {
     
     Object.entries(modalSelections.required).forEach(([groupId, itemId]) => {
       const sub = findItemById(itemId);
-      if (sub) { totalWeight += sub.weight || 0; totalPrice += sub.price || 0; reqDetails[groupId] = sub.name; }
+      const group = item.accessoryGroups?.find(g => g.id === groupId);
+      const opt = group?.options.find(o => o.itemId === itemId);
+      const amt = opt?.amount || 1;
+      if (sub) { totalWeight += (sub.weight || 0) * amt; totalPrice += (sub.price || 0) * amt; reqDetails[groupId] = `${amt > 1 ? amt + 'x ' : ''}${sub.name}`; }
     });
 
     const optDetails = [];
     modalSelections.optional.forEach(itemId => {
       const sub = findItemById(itemId);
-      if (sub) { totalWeight += sub.weight || 0; totalPrice += sub.price || 0; optDetails.push(sub.name); }
+      const group = item.accessoryGroups?.find(g => g.options.some(o => o.itemId === itemId));
+      const opt = group?.options.find(o => o.itemId === itemId);
+      const amt = opt?.amount || 1;
+      if (sub) { totalWeight += (sub.weight || 0) * amt; totalPrice += (sub.price || 0) * amt; optDetails.push(`${amt > 1 ? amt + 'x ' : ''}${sub.name}`); }
     });
 
     setCurrentMission(p => ({ ...p, items: [...p.items, { instanceId: Date.now().toString(), id: item.id, name: item.name, price: totalPrice, weight: parseFloat(totalWeight.toFixed(2)), selections: { required: reqDetails, optional: optDetails } }] }));
