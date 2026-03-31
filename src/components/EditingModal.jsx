@@ -11,7 +11,6 @@ export default function EditingModal({
   inventory, 
   findItemById 
 }) {
-  const [groupFilters, setGroupFilters] = useState({});
 
   if (!editingModal.isOpen) return null;
 
@@ -48,7 +47,7 @@ export default function EditingModal({
               <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                 <h4 className="text-sm font-black uppercase tracking-widest">Tilbehørsgrupper</h4>
                 <button onClick={() => {
-                   const g = { id: 'grp_' + Date.now().toString(), label: '', type: 'optional', options: [] };
+                   const g = { id: 'grp_' + Date.now().toString(), label: 'Alle', type: 'optional', options: [] };
                    setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: [...(editingModal.item?.accessoryGroups || []), g] } });
                 }} className="text-[9px] font-black uppercase bg-black text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-all">+ Legg til</button>
               </div>
@@ -57,7 +56,7 @@ export default function EditingModal({
                 {(editingModal.item?.accessoryGroups || []).length === 0 && <p className="text-[10px] font-black uppercase text-slate-400 text-center py-6">Ingen tilbehørsgrupper opprettet.</p>}
                 
                 {(editingModal.item?.accessoryGroups || []).map((group, grpIdx) => {
-                  const currentFilter = groupFilters[group.id] || 'Alle';
+                  const currentFilter = CATEGORIES.includes(group.label) ? group.label : 'Alle';
 
                   return (
                   <div key={group.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm relative">
@@ -67,10 +66,13 @@ export default function EditingModal({
                     }} className="absolute top-4 right-4 text-slate-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                     
                     <div className="flex gap-2 pr-6 mb-4">
-                      <input type="text" className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm font-bold placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" placeholder="Eks: Strømkabel / Valgfritt" value={group.label} onChange={(e) => {
+                      <select className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-slate-200" value={currentFilter} onChange={(e) => {
                          const grps = [...editingModal.item.accessoryGroups]; grps[grpIdx].label = e.target.value;
                          setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: grps }});
-                      }} />
+                      }}>
+                         <option value="Alle">Kategori: Vis alt utstyr</option>
+                         {CATEGORIES.filter(c => c !== 'Alle').map(c => <option key={c} value={c}>Kategori: {c}</option>)}
+                      </select>
                       <select className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-bold w-24 outline-none" value={group.type} onChange={(e) => {
                          const grps = [...editingModal.item.accessoryGroups]; grps[grpIdx].type = e.target.value;
                          setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: grps }});
@@ -109,12 +111,7 @@ export default function EditingModal({
                        })}
 
                        <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                          <div className="text-[9px] uppercase font-black tracking-widest text-slate-400">Filtrer på Kategori</div>
-                          <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 outline-none" value={currentFilter} onChange={e => setGroupFilters({...groupFilters, [group.id]: e.target.value})}>
-                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          
-                          <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500 outline-none mt-2" value="" onChange={(e) => {
+                          <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500 outline-none" value="" onChange={(e) => {
                               if(!e.target.value) return;
                               const grps = [...editingModal.item.accessoryGroups];
                               if(!grps[grpIdx].options.find(o => o.itemId === e.target.value)) {
@@ -122,7 +119,7 @@ export default function EditingModal({
                                  setEditingModal({ ...editingModal, item: { ...editingModal.item, accessoryGroups: grps }});
                               }
                           }}>
-                            <option value="">+ Legg til tilbehør fra {currentFilter}</option>
+                            <option value="">+ Legg til tilbehør i gruppen ({currentFilter === 'Alle' ? 'Alle kategorier' : currentFilter})</option>
                             {inventory
                               .filter(i => i.id !== editingModal.item?.id && !group.options.some(o => o.itemId === i.id))
                               .filter(i => currentFilter === 'Alle' || i.category === currentFilter)
