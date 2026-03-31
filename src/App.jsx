@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Search, Trash2, Save, FileText, Settings, Box, Calendar, User, MapPin, Download, Upload, ChevronRight, Info, CheckCircle2, AlertCircle, Printer, Edit2, Package, X, History, Database
+  Plus, Search, Trash2, Save, FileText, Settings, Box, Calendar, User, MapPin, Download, Upload, ChevronRight, Info, CheckCircle2, AlertCircle, Printer, Edit2, Package, X, History, Database, Cloud
 } from 'lucide-react';
+import { db } from './firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import './App.css';
-
-// --- INITIAL DATA (Brukt hvis LocalStorage er tom) ---
-const INITIAL_INVENTORY = [
-  { id: '1', name: 'QSC K12.2 Aktiv Høyttaler', category: 'Lyd', location: 'Hylle A1', price: 450, weight: 17.7, requiredGroups: [{ id: 'req_1', label: 'Strømkabel', options: ['k_1', 'k_2'] }], optionalItems: ['t_1'] },
-  { id: 'k_1', name: 'Apparatkabel 2m', category: 'Kabel', location: 'Kabelkasse 1', price: 10, weight: 0.2 },
-  { id: 'k_2', name: 'Apparatkabel 5m', category: 'Kabel', location: 'Kabelkasse 1', price: 15, weight: 0.4 },
-  { id: 't_1', name: 'Høyttalerstativ', category: 'Tilbehør', location: 'Stativ-rack', price: 50, weight: 4.5 }
-];
 
 const CATEGORIES = ['Alle', 'Lyd', 'Lys', 'Kabel', 'Tilbehør', 'Video', 'Scene', 'Annet'];
 
@@ -35,33 +29,46 @@ export default function App() {
   const [modalSelections, setModalSelections] = useState({ required: {}, optional: [] });
   const [editingModal, setEditingModal] = useState({ isOpen: false, item: null });
 
-  // 1. Last inn data fra LocalStorage ved oppstart
+  // 1. Last inn data fra Firestore
   useEffect(() => {
-    const savedInv = localStorage.getItem('bjerkreim_inventory');
-    const savedMis = localStorage.getItem('bjerkreim_missions');
+    const unsubInv = onSnapshot(collection(db, 'inventory'), (snapshot) => {
+      const dbInv = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setInventory(dbInv);
+      
+      // Auto-migrate fra LocalStorage til Firestore én gang
+      if (snapshot.empty) {
+        const localInv = localStorage.getItem('bjerkreim_inventory');
+        if (localInv) {
+             const parsed = JSON.parse(localInv);
+             parsed.forEach(item => {
+                 setDoc(doc(db, 'inventory', item.id), item).catch(e => console.error(e));
+             });
+        }
+      }
+    }, (error) => {
+      console.error("Firestore feil:", error);
+    });
 
-    if (savedInv) {
-      setInventory(JSON.parse(savedInv));
-    } else {
-      setInventory(INITIAL_INVENTORY);
-      localStorage.setItem('bjerkreim_inventory', JSON.stringify(INITIAL_INVENTORY));
-    }
+    const unsubMis = onSnapshot(collection(db, 'missions'), (snapshot) => {
+      const dbMis = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      setSavedMissions(dbMis);
 
-    if (savedMis) {
-      setSavedMissions(JSON.parse(savedMis));
-    }
+       if (snapshot.empty) {
+        const localMis = localStorage.getItem('bjerkreim_missions');
+        if (localMis) {
+             const parsed = JSON.parse(localMis);
+             parsed.forEach(mission => {
+                 setDoc(doc(db, 'missions', mission.id), mission).catch(e => console.error(e));
+             });
+        }
+      }
+    });
+
+    return () => {
+        unsubInv();
+        unsubMis();
+    };
   }, []);
-
-  // 2. Lagre til LocalStorage når state endres
-  useEffect(() => {
-    if (inventory.length > 0) {
-      localStorage.setItem('bjerkreim_inventory', JSON.stringify(inventory));
-    }
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem('bjerkreim_missions', JSON.stringify(savedMissions));
-  }, [savedMissions]);
 
   // --- DERIVED STATE ---
   const filteredInventory = useMemo(() => {
@@ -75,45 +82,49 @@ export default function App() {
   const findItemById = (id) => inventory.find(i => i.id === id);
 
   // --- ACTIONS ---
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!editingModal.item?.name) return;
-    const item = editingModal.item;
-    const exists = inventory.find(i => i.id === item.id);
+    const item = { ...editingModal.item };
+    if (!item.id) item.id = Date.now().toString();
     
-    if (exists) {
-      setInventory(inventory.map(i => i.id === item.id ? item : i));
-    } else {
-      setInventory([...inventory, item]);
-    }
-    setEditingModal({ isOpen: false, item: null });
-  };
-
-  const handleDeleteItem = (id) => {
-    if (window.confirm("Er du sikker på at du vil slette dette utstyret permanent?")) {
-      setInventory(inventory.filter(i => i.id !== id));
+    try {
+      await setDoc(doc(db, 'inventory', item.id), item);
       setEditingModal({ isOpen: false, item: null });
+    } catch (e) { 
+      console.error(e); 
+      alert("Feil under lagring til skyen. Sjekk at Firebase config er utfylt.");
     }
   };
 
-  const handleSaveMissionToArchive = () => {
+  const handleDeleteItem = async (id) => {
+    if (window.confirm("Er du sikker på at du vil slette dette utstyret permanent fra skyen?")) {
+      try {
+        await deleteDoc(doc(db, 'inventory', id));
+        setEditingModal({ isOpen: false, item: null });
+      } catch (e) { console.error(e); }
+    }
+  };
+
+  const handleSaveMissionToArchive = async () => {
     if (!currentMission.title) {
       alert("Gi oppdraget et navn først.");
       return;
     }
     const updatedMission = { ...currentMission, lastUpdated: Date.now() };
-    const exists = savedMissions.find(m => m.id === currentMission.id);
-    
-    if (exists) {
-      setSavedMissions(savedMissions.map(m => m.id === currentMission.id ? updatedMission : m));
-    } else {
-      setSavedMissions([updatedMission, ...savedMissions]);
+    try {
+      await setDoc(doc(db, 'missions', updatedMission.id), updatedMission);
+      alert("Oppdrag arkivert trygt i skyen.");
+    } catch (e) {
+      console.error(e);
+      alert("Feil under lagring. Sjekk Firebase-oppsettet.");
     }
-    alert("Oppdrag arkivert lokalt.");
   };
 
-  const handleDeleteMission = (id) => {
-    if (window.confirm("Slette oppdrag fra arkiv?")) {
-      setSavedMissions(savedMissions.filter(m => m.id !== id));
+  const handleDeleteMission = async (id) => {
+    if (window.confirm("Slette oppdrag permanent fra arkivet?")) {
+      try {
+        await deleteDoc(doc(db, 'missions', id));
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -184,7 +195,7 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "bjerkreim_total_backup.json");
+    downloadAnchorNode.setAttribute("download", "bjerkreim_firestore_backup.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -192,8 +203,8 @@ export default function App() {
 
   // --- UI COMPONENTS ---
   const CompanyLogo = ({ className = "w-10 h-10" }) => (
-    <div className={`${className} bg-white rounded-full flex items-center justify-center overflow-hidden border border-slate-200`}>
-      <div className="font-black text-black tracking-tighter w-full h-full flex items-center justify-center bg-slate-100">BLL</div>
+    <div className={`${className} bg-white rounded-full flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm`}>
+      <div className="font-black text-slate-800 tracking-tighter w-full h-full flex items-center justify-center bg-slate-50">BLL</div>
     </div>
   );
 
@@ -206,7 +217,7 @@ export default function App() {
             <CompanyLogo className="w-14 h-14" />
             <div>
               <h1 className="text-xl font-black tracking-tight leading-none text-black uppercase">Bjerkreim Lyd & Lys AS</h1>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-[0.2em] mt-1.5">Lokal Lagring (Browser)</p>
+              <p className="text-[10px] flex items-center gap-1.5 uppercase font-bold text-sky-500 tracking-[0.2em] mt-1.5"><Cloud className="w-3 h-3" /> Firebase Skylagring</p>
             </div>
           </div>
           
@@ -223,7 +234,7 @@ export default function App() {
           </nav>
 
           <div className="flex items-center gap-3">
-             <button onClick={exportFullBackup} title="Full Backup" className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-black hover:text-white transition-all">
+             <button onClick={exportFullBackup} title="Last ned backup" className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-black hover:text-white transition-all">
                 <Database className="w-5 h-5" />
              </button>
           </div>
@@ -293,7 +304,7 @@ export default function App() {
                   <h2 className="text-2xl font-black text-black uppercase tracking-tight">Prosjektdetaljer</h2>
                   <div className="flex gap-2">
                     <button onClick={handleSaveMissionToArchive} className="px-4 py-2.5 bg-black text-white rounded-xl hover:bg-slate-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all">
-                      <Save className="w-4 h-4"/> Arkiver Lokalt
+                      <Cloud className="w-4 h-4"/> Arkiver i skyen
                     </button>
                     <button onClick={() => setCurrentMission({ id: Date.now().toString(), title: '', client: '', date: '', location: '', items: [] })} className="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-slate-200 text-[10px] font-black uppercase tracking-widest transition-all">
                       Tøm Skjema
@@ -312,7 +323,7 @@ export default function App() {
               <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const itemData = e.dataTransfer.getData('item'); if (itemData) openAddToListModal(JSON.parse(itemData)); }} className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 min-h-[600px]">
                 <div className="flex justify-between items-center mb-10">
                    <h2 className="text-2xl font-black text-black uppercase tracking-tight">Utstyrsliste</h2>
-                   <button onClick={() => window.print()} className="p-3 bg-slate-100 text-slate-500 rounded-2xl hover:bg-black hover:text-white transition-all shadow-sm"><Printer className="w-6 h-6" /></button>
+                   <button onClick={() => window.print()} title="Skriv ut pakkseddel" className="p-3 bg-slate-100 text-slate-500 rounded-2xl hover:bg-black hover:text-white transition-all shadow-sm"><Printer className="w-6 h-6" /></button>
                 </div>
       
                 {currentMission.items.length === 0 ? (
@@ -382,11 +393,11 @@ export default function App() {
 
         {activeTab === 'history' && (
           <div className="max-w-4xl mx-auto space-y-6">
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-8">Arkiverte Oppdrag</h2>
+            <h2 className="text-2xl font-black uppercase tracking-tight mb-8">Oppdrag i Skyen <Cloud className="inline w-6 h-6 ml-2 text-sky-500" /></h2>
             {savedMissions.length === 0 ? (
               <div className="bg-white p-20 rounded-[2.5rem] text-center border border-slate-100">
                 <History className="w-16 h-16 mx-auto mb-4 text-slate-100" />
-                <p className="font-black uppercase text-slate-300 tracking-widest">Ingen arkiverte oppdrag i denne nettleseren</p>
+                <p className="font-black uppercase text-slate-300 tracking-widest">Ingen arkiverte oppdrag i databasen</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -419,7 +430,7 @@ export default function App() {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-2xl z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in duration-300">
              <div className="bg-black p-10 text-white flex justify-between items-center">
-                <div className="flex items-center gap-6"><CompanyLogo className="w-16 h-16 ring-4 ring-white/10" /><div><h2 className="text-[10px] font-black tracking-[0.5em] uppercase text-slate-500">Lager Editor</h2><h3 className="text-3xl font-black uppercase mt-1 tracking-tight">{inventory.find(i => i.id === editingModal.item?.id) ? 'Rediger enhet' : 'Ny enhet'}</h3></div></div>
+                <div className="flex items-center gap-6"><CompanyLogo className="w-16 h-16 ring-4 ring-white/10" /><div><h2 className="text-[10px] font-black tracking-[0.5em] uppercase text-slate-500 flex items-center gap-2"><Cloud className="w-3 h-3 text-sky-400" /> Firebase Base</h2><h3 className="text-3xl font-black uppercase mt-1 tracking-tight">{inventory.find(i => i.id === editingModal.item?.id) ? 'Rediger enhet' : 'Ny enhet'}</h3></div></div>
                 <button onClick={() => setEditingModal({isOpen: false, item: null})} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all"><X className="w-8 h-8" /></button>
              </div>
              <div className="p-12 grid grid-cols-2 gap-12">
@@ -433,16 +444,17 @@ export default function App() {
                 </div>
                 <div className="space-y-8">
                   <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Lagerplassering</label><input type="text" placeholder="Hylle/Rack" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black" value={editingModal.item?.location} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, location: e.target.value}})} /></div>
-                  <div className="p-8 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100">
-                    <p className="text-black font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2"><Info className="w-4 h-4" /> Lokal Lagring</p>
-                    <p className="text-sm font-bold text-slate-400 leading-relaxed uppercase tracking-tighter">Siden du ikke bruker Firestore, lagres alle endringer kun i denne nettleseren. Husk å ta backup (Database-ikonet) med jevne mellomrom.</p>
-                    <button onClick={() => handleDeleteItem(editingModal.item.id)} className="mt-10 w-full p-4 border-2 border-red-100 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all">Slett fra lager</button>
+                  <div className="p-8 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 relative overflow-hidden">
+                    <Cloud className="absolute -right-4 -bottom-4 w-32 h-32 text-slate-200/50" />
+                    <p className="text-black font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10"><Cloud className="w-4 h-4 text-sky-500" /> Skylagring (Firestore)</p>
+                    <p className="text-sm font-bold text-slate-400 leading-relaxed uppercase tracking-tighter relative z-10">Endringer du gjør her vil oppdateres direkte i skyen og vil umiddelbart være synlig for andre brukere som åpner siden.</p>
+                    <button onClick={() => handleDeleteItem(editingModal.item.id)} className="mt-10 w-full p-4 border-2 border-red-100 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all relative z-10">Slett fra skyen</button>
                   </div>
                 </div>
              </div>
              <div className="p-12 bg-slate-50 flex gap-6">
                 <button onClick={() => setEditingModal({isOpen: false, item: null})} className="flex-1 px-10 py-6 bg-white border-2 border-slate-200 text-slate-400 rounded-3xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all">Avbryt</button>
-                <button onClick={handleSaveItem} className="flex-[2] px-10 py-6 bg-black text-white rounded-3xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1">Lagre Lokalt</button>
+                <button onClick={handleSaveItem} className="flex-[2] px-10 py-6 bg-black text-white rounded-3xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1">Lagre til Sky</button>
              </div>
           </div>
         </div>
@@ -462,7 +474,7 @@ export default function App() {
                       const opt = findItemById(optionId);
                       return (
                         <button key={optionId} onClick={() => setModalSelections({ ...modalSelections, required: { ...modalSelections.required, [group.id]: optionId } })} className={`text-left px-8 py-5 rounded-[2rem] border-4 transition-all flex justify-between items-center ${modalSelections.required[group.id] === optionId ? 'border-black bg-slate-50 text-black ring-8 ring-slate-100' : 'border-slate-50 text-slate-300'}`}>
-                          <span className="text-lg">{opt?.name || optionId}</span><span className="text-[10px] px-3 py-1 bg-white rounded-full border border-slate-200">+{opt?.price},-</span>
+                          <span className="text-lg">{opt?.name || optionId}</span><span className="text-[10px] px-3 py-1 bg-white rounded-full border border-slate-200">+{opt?.price || 0},-</span>
                         </button>
                       );
                     })}
@@ -509,7 +521,7 @@ export default function App() {
           <tbody>
             {currentMission.items.map((item, idx) => (
               <tr key={idx} className="border-b border-slate-200">
-                <td className="py-10"><div className="font-black text-3xl tracking-tight uppercase">{item.name}</div><div className="text-[11px] font-black text-slate-400 mt-5 flex flex-wrap gap-4 uppercase">{[...Object.values(item.selections.required), ...item.selections.optional].map((s, i) => (<span key={i} className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">● {s}</span>))}</div></td>
+                <td className="py-10"><div className="font-black text-3xl tracking-tight uppercase">{item.name}</div><div className="text-[11px] font-black text-slate-400 mt-5 flex flex-wrap gap-4 uppercase">{[...Object.values(item.selections.required || {}), ...(item.selections.optional || [])].map((s, i) => (<span key={i} className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">● {s}</span>))}</div></td>
                 <td className="py-10 text-center font-black text-2xl tracking-tight uppercase font-black uppercase tracking-tighter">{inventory.find(i => i.id === item.id)?.location || '--'}</td>
                 <td className="py-10 text-right font-black text-2xl tracking-tight uppercase font-black uppercase tracking-tighter">{item.weight} kg</td>
                 <td className="py-10 text-center"><div className="w-14 h-14 border-8 border-slate-100 rounded-[1.5rem] mx-auto" /></td>
@@ -521,8 +533,8 @@ export default function App() {
            <div className="space-y-12"><div><p className="text-[12px] font-black text-slate-300 tracking-[0.4em] mb-6">Ansvarlig Utlevering</p><div className="w-96 h-1 bg-slate-100" /></div><p className="text-[11px] text-slate-300 font-black italic">Sjekk kabelbrudd ved retur.</p></div>
            <div className="text-right">
               <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Enheter: <span className="text-black ml-6">{currentMission.items.length}</span></div>
-              <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Vekt: <span className="text-black ml-6">{currentMission.items.reduce((acc, i) => acc + i.weight, 0).toFixed(1)} kg</span></div>
-              <div className="text-8xl font-black mt-16 tracking-tighter text-black leading-none uppercase font-black uppercase tracking-tighter">SUM: {currentMission.items.reduce((acc, i) => acc + i.price, 0)},-</div>
+              <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Vekt: <span className="text-black ml-6">{currentMission.items.reduce((acc, i) => acc + (i.weight || 0), 0).toFixed(1)} kg</span></div>
+              <div className="text-8xl font-black mt-16 tracking-tighter text-black leading-none uppercase font-black uppercase tracking-tighter">SUM: {currentMission.items.reduce((acc, i) => acc + (i.price || 0), 0)},-</div>
            </div>
         </div>
       </div>
