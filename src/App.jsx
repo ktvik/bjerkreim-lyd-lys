@@ -35,7 +35,6 @@ export default function App() {
       const dbInv = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
       setInventory(dbInv);
       
-      // Auto-migrate fra LocalStorage til Firestore én gang
       if (snapshot.empty) {
         const localInv = localStorage.getItem('bjerkreim_inventory');
         if (localInv) {
@@ -86,6 +85,10 @@ export default function App() {
     if (!editingModal.item?.name) return;
     const item = { ...editingModal.item };
     if (!item.id) item.id = Date.now().toString();
+    
+    // Sørg for at feltene eksisterer i dokumentet
+    if (!item.optionalItems) item.optionalItems = [];
+    if (!item.requiredGroups) item.requiredGroups = [];
     
     try {
       await setDoc(doc(db, 'inventory', item.id), item);
@@ -144,7 +147,7 @@ export default function App() {
     setSelectionModal({ isOpen: true, item });
     const initialReq = {};
     item.requiredGroups?.forEach(group => {
-      initialReq[group.id] = group.options[0];
+      initialReq[group.id] = group.options[0]; // Sett første valget som default
     });
     setModalSelections({ required: initialReq, optional: [] });
   };
@@ -296,6 +299,7 @@ export default function App() {
          </div>
         )}
 
+        {/* ... (Mission and history tabs identical to previously) ... */}
         {activeTab === 'mission' && (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <div className="xl:col-span-2 space-y-6">
@@ -338,10 +342,10 @@ export default function App() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 font-black text-slate-900 uppercase tracking-tight text-lg">{item.name} <span className="text-[10px] bg-slate-900 text-white px-2 py-1 rounded uppercase">{item.price},-</span></div>
                           <div className="flex flex-wrap gap-2 mt-4">
-                            {Object.entries(item.selections.required).map(([key, val]) => (
+                            {Object.entries(item.selections.required || {}).map(([key, val]) => (
                               <div key={key} className="text-[9px] font-black flex items-center gap-2 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 uppercase tracking-widest"><CheckCircle2 className="w-3 h-3 text-green-500" /> {val}</div>
                             ))}
-                            {item.selections.optional.map((opt) => (
+                            {(item.selections.optional || []).map((opt) => (
                               <div key={opt} className="text-[9px] font-black flex items-center gap-2 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 uppercase tracking-widest"><Plus className="w-3 h-3 text-slate-400" /> {opt}</div>
                             ))}
                           </div>
@@ -359,11 +363,11 @@ export default function App() {
                     <div className="mt-12 pt-12 border-t-8 border-black flex justify-between items-end">
                       <div className="space-y-3 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                          <div>Enheter: <span className="text-slate-900 ml-4">{currentMission.items.length}</span></div>
-                         <div>Vekt: <span className="text-slate-900 ml-4">{currentMission.items.reduce((acc, i) => acc + i.weight, 0).toFixed(1)} kg</span></div>
+                         <div>Vekt: <span className="text-slate-900 ml-4">{currentMission.items.reduce((acc, i) => acc + (i.weight || 0), 0).toFixed(1)} kg</span></div>
                       </div>
                       <div className="text-right">
                         <div className="text-[11px] uppercase font-black text-slate-300 tracking-[0.4em] mb-1">TOTAL LEIESUM</div>
-                        <div className="text-6xl font-black text-black tracking-tighter leading-none">{currentMission.items.reduce((acc, i) => acc + i.price, 0)},-</div>
+                        <div className="text-6xl font-black text-black tracking-tighter leading-none">{currentMission.items.reduce((acc, i) => acc + (i.price || 0), 0)},-</div>
                       </div>
                     </div>
                   </div>
@@ -428,33 +432,160 @@ export default function App() {
       {/* --- MODALS --- */}
       {editingModal.isOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-2xl z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in duration-300">
-             <div className="bg-black p-10 text-white flex justify-between items-center">
-                <div className="flex items-center gap-6"><CompanyLogo className="w-16 h-16 ring-4 ring-white/10" /><div><h2 className="text-[10px] font-black tracking-[0.5em] uppercase text-slate-500 flex items-center gap-2"><Cloud className="w-3 h-3 text-sky-400" /> Firebase Base</h2><h3 className="text-3xl font-black uppercase mt-1 tracking-tight">{inventory.find(i => i.id === editingModal.item?.id) ? 'Rediger enhet' : 'Ny enhet'}</h3></div></div>
-                <button onClick={() => setEditingModal({isOpen: false, item: null})} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all"><X className="w-8 h-8" /></button>
-             </div>
-             <div className="p-12 grid grid-cols-2 gap-12">
-                <div className="space-y-8">
-                  <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Produktnavn</label><input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black focus:ring-8 focus:ring-slate-100 text-lg" value={editingModal.item?.name} placeholder="Navn" onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, name: e.target.value}})} /></div>
-                  <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Kategori</label><select className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black text-slate-600" value={editingModal.item?.category} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, category: e.target.value}})}>{CATEGORIES.filter(c => c !== 'Alle').map(cat => <option key={cat}>{cat}</option>)}</select></div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Pris</label><input type="number" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black" value={editingModal.item?.price} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, price: Number(e.target.value)}})} /></div>
-                    <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vekt</label><input type="number" step="0.1" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black" value={editingModal.item?.weight} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, weight: parseFloat(e.target.value)}})} /></div>
+          <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+             
+             {/* Modal Header */}
+             <div className="bg-black p-8 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-6">
+                  <CompanyLogo className="w-14 h-14 ring-4 ring-white/10" />
+                  <div>
+                    <h2 className="text-[10px] font-black tracking-[0.5em] uppercase text-slate-500 flex items-center gap-2">
+                      <Cloud className="w-3 h-3 text-sky-400" /> Firebase Base
+                    </h2>
+                    <h3 className="text-2xl font-black uppercase mt-1 tracking-tight">
+                      {inventory.find(i => i.id === editingModal.item?.id) ? 'Rediger enhet' : 'Ny enhet'}
+                    </h3>
                   </div>
                 </div>
-                <div className="space-y-8">
-                  <div className="space-y-3"><label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Lagerplassering</label><input type="text" placeholder="Hylle/Rack" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl outline-none font-black" value={editingModal.item?.location} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, location: e.target.value}})} /></div>
-                  <div className="p-8 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 relative overflow-hidden">
-                    <Cloud className="absolute -right-4 -bottom-4 w-32 h-32 text-slate-200/50" />
-                    <p className="text-black font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10"><Cloud className="w-4 h-4 text-sky-500" /> Skylagring (Firestore)</p>
-                    <p className="text-sm font-bold text-slate-400 leading-relaxed uppercase tracking-tighter relative z-10">Endringer du gjør her vil oppdateres direkte i skyen og vil umiddelbart være synlig for andre brukere som åpner siden.</p>
-                    <button onClick={() => handleDeleteItem(editingModal.item.id)} className="mt-10 w-full p-4 border-2 border-red-100 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all relative z-10">Slett fra skyen</button>
+                <button onClick={() => setEditingModal({isOpen: false, item: null})} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all">
+                  <X className="w-6 h-6" />
+                </button>
+             </div>
+
+             {/* Modal Body (Scrollable) */}
+             <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-white">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                  {/* Venstre Kolonne: Hovedinfo */}
+                  <div className="space-y-6">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 border-b border-slate-100 pb-3">Grunnleggende Info</h4>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Produktnavn</label>
+                      <input type="text" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black focus:ring-4 focus:ring-slate-100 text-base" value={editingModal.item?.name || ''} placeholder="Navn" onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, name: e.target.value}})} />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Kategori</label>
+                      <select className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black text-slate-600" value={editingModal.item?.category || 'Lyd'} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, category: e.target.value}})}>
+                        {CATEGORIES.filter(c => c !== 'Alle').map(cat => <option key={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Pris (Per dag)</label>
+                        <input type="number" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black" value={editingModal.item?.price || 0} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, price: Number(e.target.value)}})} />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vekt (kg)</label>
+                        <input type="number" step="0.1" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black" value={editingModal.item?.weight || 0} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, weight: parseFloat(e.target.value)}})} />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Lagerplassering</label>
+                      <input type="text" placeholder="Hylle/Rack" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black" value={editingModal.item?.location || ''} onChange={(e) => setEditingModal({...editingModal, item: {...editingModal.item, location: e.target.value}})} />
+                    </div>
+                  </div>
+
+                  {/* Høyre Kolonne: Tilbehør/Relasjon */}
+                  <div className="space-y-6">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 border-b border-slate-100 pb-3">Utstyrskoblinger & Tilbehør</h4>
+                    
+                    {/* Valgfritt tilbehør editor */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex justify-between items-center">
+                        Valgfritt tilbehør
+                        <span className="text-[8px] bg-slate-200 text-slate-500 px-2 py-1 rounded">FLERVALG MULIG</span>
+                      </label>
+                      <div className="max-h-48 overflow-y-auto custom-scrollbar p-3 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-1 gap-2">
+                        {inventory.filter(i => i.id !== editingModal.item?.id).map(invItem => (
+                          <label key={invItem.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-black transition-all">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded text-black focus:ring-black"
+                              checked={(editingModal.item?.optionalItems || []).includes(invItem.id)}
+                              onChange={(e) => {
+                                const currentOpts = editingModal.item?.optionalItems || [];
+                                if (e.target.checked) {
+                                  setEditingModal({...editingModal, item: {...editingModal.item, optionalItems: [...currentOpts, invItem.id]}});
+                                } else {
+                                  setEditingModal({...editingModal, item: {...editingModal.item, optionalItems: currentOpts.filter(id => id !== invItem.id)}});
+                                }
+                              }}
+                            />
+                            <div className="flex-1 truncate">
+                               <div className="text-xs font-bold leading-tight">{invItem.name}</div>
+                               <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{invItem.category}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Påkrevde grupper editor */}
+                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Påkrevde Valg (Grupper)</label>
+                        <button onClick={() => {
+                          const newGroup = { id: 'req_' + Date.now().toString(), label: '', options: [] };
+                          setEditingModal({...editingModal, item: {...editingModal.item, requiredGroups: [...(editingModal.item?.requiredGroups || []), newGroup]}});
+                        }} className="text-[9px] bg-slate-900 border border-slate-800 hover:bg-black text-white px-3 py-1.5 rounded-lg uppercase font-bold transition-all shadow-sm flex items-center gap-1"><Plus className="w-3 h-3"/> Legg til gruppe</button>
+                      </div>
+
+                      <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
+                        {(editingModal.item?.requiredGroups || []).length === 0 ? (
+                           <div className="text-center p-6 bg-slate-50 border border-slate-100 rounded-2xl">
+                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Ingen påkrevde valg for dette produktet.</p>
+                           </div>
+                        ) : (
+                          (editingModal.item?.requiredGroups || []).map((group, gIdx) => (
+                            <div key={group.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative">
+                              <button onClick={() => {
+                                  const newGroups = [...editingModal.item.requiredGroups];
+                                  newGroups.splice(gIdx, 1);
+                                  setEditingModal({...editingModal, item: {...editingModal.item, requiredGroups: newGroups}});
+                              }} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
+                              
+                              <input type="text" className="w-[85%] mb-3 p-2.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 transition-all" placeholder="Gruppens navn (F.eks: Velg 1 Strømkabel)" value={group.label} onChange={(e) => {
+                                  const newGroups = [...editingModal.item.requiredGroups];
+                                  newGroups[gIdx].label = e.target.value;
+                                  setEditingModal({...editingModal, item: {...editingModal.item, requiredGroups: newGroups}});
+                              }} />
+                              
+                              <div className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest pl-1">Inkluderte alternativer i gruppen</div>
+                              <div className="flex flex-wrap gap-2">
+                                  {inventory.filter(i => i.id !== editingModal.item?.id).map(invItem => (
+                                      <label key={invItem.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${group.options.includes(invItem.id) ? 'bg-black text-white border-black shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                        <input type="checkbox" className="hidden" checked={group.options.includes(invItem.id)} onChange={(e) => {
+                                            const newGroups = [...editingModal.item.requiredGroups];
+                                            if (e.target.checked) newGroups[gIdx].options.push(invItem.id);
+                                            else newGroups[gIdx].options = newGroups[gIdx].options.filter(id => id !== invItem.id);
+                                            setEditingModal({...editingModal, item: {...editingModal.item, requiredGroups: newGroups}});
+                                        }} />
+                                        {group.options.includes(invItem.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                        <span className="text-[10px] font-bold">{invItem.name}</span>
+                                      </label>
+                                  ))}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
              </div>
-             <div className="p-12 bg-slate-50 flex gap-6">
-                <button onClick={() => setEditingModal({isOpen: false, item: null})} className="flex-1 px-10 py-6 bg-white border-2 border-slate-200 text-slate-400 rounded-3xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all">Avbryt</button>
-                <button onClick={handleSaveItem} className="flex-[2] px-10 py-6 bg-black text-white rounded-3xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1">Lagre til Sky</button>
+
+             {/* Modal Footer / Submit */}
+             <div className="p-6 bg-slate-50 flex gap-4 shrink-0 border-t border-slate-200 items-center justify-between">
+                {editingModal.item?.id && (
+                  <button onClick={() => handleDeleteItem(editingModal.item.id)} className="px-6 py-4 border-2 border-red-100 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all">Slett Enhet</button>
+                )}
+                {!editingModal.item?.id && <div />}
+                
+                <div className="flex gap-4">
+                  <button onClick={() => setEditingModal({isOpen: false, item: null})} className="px-8 py-4 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all">Avbryt</button>
+                  <button onClick={handleSaveItem} className="px-8 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2">
+                    <Cloud className="w-4 h-4" /> Lagre
+                  </button>
+                </div>
              </div>
           </div>
         </div>
