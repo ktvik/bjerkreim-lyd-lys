@@ -57,9 +57,32 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
       throw new Error(`API feilet med status ${response.status}`);
     }
 
-    const data = await response.json();
-    await saveVehicleFullData(cleanRegNr, data);
-    return data;
+    const rawData = await response.json();
+    const vehicle = rawData.kjoretoydataListe?.[0];
+    
+    if (!vehicle) {
+      throw new Error("Ingen kjøretøy funnet med dette kjennetegnet.");
+    }
+
+    // Map Atlas-struktur til applikasjonens interne format (Compatibility Layer)
+    const tech = vehicle.godkjenning?.tekniskGodkjenning?.tekniskeData;
+    const normalizedData = {
+      tekniskeData: {
+        vekt: {
+          egenvektKg: tech?.vekter?.egenvekt || 0,
+          tillattTotalvektKg: tech?.vekter?.tillattTotalvekt || 0
+        },
+        karosseri: {
+          type: tech?.generelt?.tekniskKode?.kodeBeskrivelse || '',
+          lengdeMm: tech?.dimensjoner?.lengde || 0,
+          høydeMm: tech?.dimensjoner?.hoyde || 0
+        }
+      },
+      raw: vehicle // Behold rådata for feilsøking
+    };
+
+    await saveVehicleFullData(cleanRegNr, rawData);
+    return normalizedData;
   } catch (error: any) {
     const isNetworkError = error.message === 'Failed to fetch';
     await logAppError('VehicleService', {
