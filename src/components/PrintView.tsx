@@ -1,7 +1,13 @@
 import React from 'react';
 import { CompanyLogo } from './CompanyLogo';
+import { Mission, Item } from '../types';
 
-export default function PrintView({ currentMission, inventory }) {
+interface PrintViewProps {
+  currentMission: Mission;
+  inventory: Item[];
+}
+
+export default function PrintView({ currentMission, inventory }: PrintViewProps) {
   return (
     <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-16 text-black font-sans uppercase overflow-visible h-auto min-h-screen relative">
       <div className="flex justify-between items-start border-b-[12px] border-black pb-16 mb-16">
@@ -17,7 +23,15 @@ export default function PrintView({ currentMission, inventory }) {
       
       <div className="grid grid-cols-2 gap-20 mb-20 bg-slate-50 p-12 rounded-[3rem]">
          <div><p className="text-[11px] font-black text-slate-300 tracking-[0.3em] mb-4">Prosjekt / Kunde</p><p className="text-3xl font-black">{currentMission.client || '---'}</p></div>
-         <div className="text-right"><p className="text-[11px] font-black text-slate-300 tracking-[0.3em] mb-4">Dato & Sted</p><p className="text-2xl font-black">{currentMission.location || 'Lager'}</p><p className="text-xl font-bold text-slate-400 mt-2">{currentMission.date}</p></div>
+         <div className="text-right">
+            <p className="text-[11px] font-black text-slate-300 tracking-[0.3em] mb-4">Dato & Sted</p>
+            <p className="text-2xl font-black">{currentMission.location || 'Lager'}</p>
+            <p className="text-xl font-bold text-slate-400 mt-2">
+              {currentMission.startDate && currentMission.endDate 
+                ? `${currentMission.startDate} – ${currentMission.endDate}`
+                : currentMission.startDate || currentMission.endDate}
+            </p>
+         </div>
       </div>
       
       <table className="w-full text-left border-collapse">
@@ -33,13 +47,16 @@ export default function PrintView({ currentMission, inventory }) {
           {currentMission.items.map((item, idx) => (
             <tr key={idx} className="border-b border-slate-200">
               <td className="py-10">
-                 <div className="font-black text-3xl tracking-tight uppercase">{item.name}</div>
+                 <div className="font-black text-3xl tracking-tight uppercase flex items-center gap-3">
+                    {item.itemType === 'bulk' && <span className="text-slate-400">{item.quantity || 1}x</span>}
+                    {item.name}
+                 </div>
                  <div className="text-[11px] font-black text-slate-400 mt-5 flex flex-wrap gap-4 uppercase">
                     {[...Object.values(item.selections.required || {}), ...(item.selections.optional || [])].map((s, i) => (<span key={i} className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">● {s}</span>))}
                  </div>
               </td>
               <td className="py-10 text-center font-black text-2xl tracking-tight uppercase tracking-tighter">{inventory.find(i => i.id === item.id)?.location || '--'}</td>
-              <td className="py-10 text-right font-black text-2xl tracking-tight uppercase tracking-tighter">{item.weight} kg</td>
+              <td className="py-10 text-right font-black text-2xl tracking-tight uppercase tracking-tighter">{((item.baseWeight || 0) * (item.quantity || 1)).toFixed(1)} kg</td>
               <td className="py-10 text-center"><div className="w-14 h-14 border-8 border-slate-100 rounded-[1.5rem] mx-auto" /></td>
             </tr>
           ))}
@@ -52,9 +69,9 @@ export default function PrintView({ currentMission, inventory }) {
             <p className="text-[11px] text-slate-300 font-black italic">Sjekk kabelbrudd ved retur.</p>
          </div>
          <div className="text-right">
-            <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Enheter: <span className="text-black ml-6">{currentMission.items.length}</span></div>
-            <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Vekt: <span className="text-black ml-6">{currentMission.items.reduce((acc, i) => acc + (i.weight || 0), 0).toFixed(1)} kg</span></div>
-            <div className="text-8xl font-black mt-16 tracking-tighter text-black leading-none uppercase tracking-tighter">SUM: {currentMission.items.reduce((acc, i) => acc + (i.price || 0), 0)},-</div>
+            <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Enheter: <span className="text-black ml-6">{currentMission.items.reduce((a, i) => a + (i.quantity || 1), 0)}</span></div>
+            <div className="text-xl font-black text-slate-300 tracking-[0.3em] mb-4">Vekt: <span className="text-black ml-6">{currentMission.items.reduce((a, i) => a + ((i.baseWeight || 0) * (i.quantity || 1)), 0).toFixed(1)} kg</span></div>
+            <div className="text-8xl font-black mt-16 tracking-tighter text-black leading-none uppercase tracking-tighter">SUM: {currentMission.items.reduce((a, i) => a + ((i.basePrice || 0) * (i.quantity || 1)), 0)},-</div>
          </div>
       </div>
     </div>

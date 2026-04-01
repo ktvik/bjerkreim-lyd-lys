@@ -1,6 +1,21 @@
 import React from 'react';
 import { CompanyLogo } from './CompanyLogo';
 import { AlertCircle, Plus, CheckCircle2 } from 'lucide-react';
+import { Item } from '../types';
+
+interface ModalSelections {
+  required: Record<string, string>;
+  optional: string[];
+}
+
+interface SelectionModalProps {
+  selectionModal: { isOpen: boolean; item: Item | null };
+  setSelectionModal: (m: { isOpen: boolean; item: Item | null }) => void;
+  modalSelections: ModalSelections;
+  setModalSelections: (s: ModalSelections) => void;
+  confirmAddToList: () => void;
+  findItemById: (id: string) => Item | undefined;
+}
 
 export default function SelectionModal({ 
   selectionModal, 
@@ -9,8 +24,10 @@ export default function SelectionModal({
   setModalSelections, 
   confirmAddToList, 
   findItemById 
-}) {
-  if (!selectionModal.isOpen) return null;
+}: SelectionModalProps) {
+  if (!selectionModal.isOpen || !selectionModal.item) return null;
+
+  const item = selectionModal.item;
 
   return (
     <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl z-[60] flex items-center justify-center p-4">
@@ -20,12 +37,12 @@ export default function SelectionModal({
             <CompanyLogo className="w-20 h-20" />
             <div>
               <h2 className="text-[11px] font-black tracking-[0.4em] uppercase text-slate-500 mb-2">Lager / Konfigurasjon</h2>
-              <h3 className="text-4xl font-black uppercase leading-none">{selectionModal.item.name}</h3>
+              <h3 className="text-4xl font-black uppercase leading-none">{item.name}</h3>
             </div>
           </div>
         </div>
         <div className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1 bg-slate-50">
-          {selectionModal.item.accessoryGroups?.map(group => (
+          {item.accessoryGroups?.map(group => (
             <div key={group.id} className="space-y-6">
               <label className="text-[12px] font-black text-slate-500 flex items-center gap-3 tracking-[0.3em] uppercase">
                 {group.type === 'required' ? <AlertCircle className="w-5 h-5 text-amber-500" /> : <Plus className="w-5 h-5 text-sky-500" />}
@@ -55,7 +72,7 @@ export default function SelectionModal({
                            {optObj.recommended && group.type === 'required' && !isSelected && <div className="text-[9px] text-sky-500 font-black tracking-widest uppercase mt-1 flex items-center gap-1">Foretrukket / Anbefalt</div>}
                          </div>
                       </div>
-                      <span className="text-[10px] uppercase font-black px-3 py-1 bg-slate-100 rounded-full border border-slate-200">+{opt.price * amt},-</span>
+                      <span className="text-[10px] uppercase font-black px-3 py-1 bg-slate-100 rounded-full border border-slate-200">+{((opt.price || 0) * amt)},-</span>
                     </button>
                   );
                 })}
