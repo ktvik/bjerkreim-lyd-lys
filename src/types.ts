@@ -103,4 +103,16 @@ export interface Vehicle {
   payload: number;
   length: number;
   height: number;
+  // Nye felt fra SVV
+  width?: number;
+  make?: string;
+  model?: string;
+  fuelType?: string;
+  euControlDeadline?: string;
+  lastApproved?: string;
+  mileage?: number;
+  maxTotalWeight?: number;
+  trailerWeightWithBrake?: number;
+  trailerWeightWithoutBrake?: number;
+  trainWeight?: number;
 }

@@ -81,8 +81,17 @@ export default function SettingsTab({
     if (!editingVehicle.regnr) return;
     const id = editingVehicle.id || Date.now().toString();
     try {
-      await setDoc(doc(db, 'vehicles', id), { ...editingVehicle, id, regnr: editingVehicle.regnr.toUpperCase() });
-      setEditingVehicle({ type: 'Personbil', regnr: '', weight: 0, payload: 0, length: 0, height: 0 });
+      await setDoc(doc(db, 'vehicles', id), { 
+        ...editingVehicle, 
+        id, 
+        regnr: editingVehicle.regnr.toUpperCase() 
+      });
+      setEditingVehicle({ 
+        type: 'Personbil', regnr: '', weight: 0, payload: 0, length: 0, height: 0,
+        width: 0, make: '', model: '', fuelType: '', euControlDeadline: '',
+        lastApproved: '', mileage: 0, maxTotalWeight: 0, trailerWeightWithBrake: 0,
+        trailerWeightWithoutBrake: 0, trainWeight: 0
+      });
     } catch (e: any) {
       logError(`Feil ved lagring av kjøretøy: ${editingVehicle.regnr}`, 'error', 'SettingsTab');
     }
@@ -107,7 +116,19 @@ export default function SettingsTab({
           payload: (td.vekt?.tillattTotalvektKg || 0) - (td.vekt?.egenvektKg || 0),
           length: Math.round((td.karosseri?.lengdeMm || 0) / 10),
           height: Math.round((td.karosseri?.høydeMm || 0) / 10),
-          type: vehicleType
+          type: vehicleType,
+          // Nye felt
+          width: data.extra?.width || 0,
+          make: data.extra?.make || '',
+          model: data.extra?.model || '',
+          fuelType: data.extra?.fuelType || '',
+          euControlDeadline: data.extra?.euControlDeadline || '',
+          lastApproved: data.extra?.lastApproved || '',
+          mileage: data.extra?.mileage || 0,
+          maxTotalWeight: data.extra?.maxTotalWeight || 0,
+          trailerWeightWithBrake: data.extra?.trailerWeightWithBrake || 0,
+          trailerWeightWithoutBrake: data.extra?.trailerWeightWithoutBrake || 0,
+          trainWeight: data.extra?.trainWeight || 0
         });
       }
     } catch (e: any) {
@@ -268,13 +289,25 @@ export default function SettingsTab({
                {vehicles.map(v => (
                  <div key={v.id} className="p-6 bg-white border border-slate-100 rounded-3xl flex items-center justify-between group hover:shadow-xl hover:shadow-slate-200/50 transition-all">
                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
-                          <Car className="w-6 h-6 text-slate-400" />
-                       </div>
-                       <div>
-                          <div className="text-sm font-black border-2 border-black px-2 py-0.5 rounded-md inline-block uppercase tracking-widest">{v.regnr}</div>
-                          <div className="text-[10px] font-black uppercase text-slate-400 mt-1">{v.type} • {v.weight}kg + {v.payload}kg</div>
-                       </div>
+                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
+                           <Car className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                           <div className="flex items-center gap-2 flex-wrap">
+                              <div className="text-sm font-black border-2 border-black px-2 py-0.5 rounded-md inline-block uppercase tracking-widest bg-white">{v.regnr}</div>
+                              <span className="text-[10px] font-black uppercase text-slate-400">{v.type}</span>
+                           </div>
+                           <div className="text-[9px] font-bold text-slate-400 uppercase mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                              <span>W: {v.weight}kg</span>
+                              <span>P: {v.payload}kg</span>
+                              {v.euControlDeadline && (
+                                <span className={`flex items-center gap-1 ${new Date(v.euControlDeadline) < new Date() ? 'text-rose-500' : 'text-sky-600'}`}>
+                                   <Shield className="w-3 h-3" /> EU: {new Date(v.euControlDeadline).toLocaleDateString()}
+                                </span>
+                              )}
+                              {v.mileage !== undefined && v.mileage > 0 && <span>KM: {v.mileage.toLocaleString()}</span>}
+                           </div>
+                        </div>
                     </div>
                     <button onClick={() => deleteItem('vehicles', v.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
                        <Trash2 className="w-5 h-5" />

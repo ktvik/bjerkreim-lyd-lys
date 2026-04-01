@@ -70,7 +70,9 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
 
     // Map Atlas-struktur til applikasjonens interne format (Compatibility Layer)
     const tech = vehicle.godkjenning?.tekniskGodkjenning?.tekniskeData;
-    const normalizedData = {
+    const pkk = vehicle.periodiskKjoretoyKontroll;
+    
+    const normalizedData: any = {
       tekniskeData: {
         vekt: {
           egenvektKg: tech?.vekter?.egenvekt || 0,
@@ -81,6 +83,20 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
           lengdeMm: tech?.dimensjoner?.lengde || 0,
           høydeMm: tech?.dimensjoner?.hoyde || 0
         }
+      },
+      // Utvidede felt for Vehicle interface
+      extra: {
+        width: Math.round((tech?.dimensjoner?.bredde || 0) / 10),
+        make: tech?.generelt?.merke?.[0]?.merke || '',
+        model: tech?.generelt?.handelsbetegnelse?.[0] || '',
+        fuelType: tech?.miljodata?.miljoOgdrivstoffGruppe?.[0]?.drivstoffKodeMiljodata?.kodeNavn || '',
+        euControlDeadline: pkk?.kontrollfrist || '',
+        lastApproved: pkk?.sistGodkjent || '',
+        mileage: vehicle.bruktImportInfo?.kilometerstand || 0,
+        maxTotalWeight: tech?.vekter?.tillattTotalvekt || 0,
+        trailerWeightWithBrake: tech?.vekter?.tillattTilhengervektMedBrems || 0,
+        trailerWeightWithoutBrake: tech?.vekter?.tillattTilhengervektUtenBrems || 0,
+        trainWeight: tech?.vekter?.tillattVogntogvekt || 0
       },
       raw: vehicle // Behold rådata for feilsøking
     };
