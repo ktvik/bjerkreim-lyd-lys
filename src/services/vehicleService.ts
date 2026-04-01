@@ -4,7 +4,7 @@ import { logAppError } from './logService';
 import { decryptData } from './encryptionService';
 
 const FALLBACK_KEY = import.meta.env.VITE_APP_SVV_API_KEY || '6bb68ee3-15d1-4106-8501-b39a3d889197';
-const BASE_URL = 'https://www.vegvesen.no/ws/no/vegvesen/kjoretoy/felles/kjoretoyopplysninger/v1/kjoretoy';
+const BASE_URL = 'https://akfell-datautlevering.atlas.vegvesen.no/enkeltoppslag/kjoretoydata';
 
 /**
  * Henter kjøretøydata fra Statens Vegvesen.
@@ -26,16 +26,16 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
   }
   
   try {
-    const url = `${BASE_URL}/${cleanRegNr}`;
+    const url = `${BASE_URL}?kjennemerke=${cleanRegNr}`;
     const headers = {
-      'SVV-Authorization': `Bearer ${apiKey.substring(0, 5)}***`,
+      'SVV-Authorization': `${apiKey.substring(0, 5)}***`,
       'Accept': 'application/json'
     };
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'SVV-Authorization': `Bearer ${apiKey}`,
+        'SVV-Authorization': apiKey,
         'Accept': 'application/json'
       }
     });
