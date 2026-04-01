@@ -4,7 +4,7 @@ import { logAppError } from './logService';
 import { decryptData } from './encryptionService';
 
 const FALLBACK_KEY = import.meta.env.VITE_APP_SVV_API_KEY || '6bb68ee3-15d1-4106-8501-b39a3d889197';
-const BASE_URL = 'https://akfell-datautlevering.atlas.vegvesen.no/enkeltoppslag/kjoretoydata';
+const BASE_URL = 'https://www.vegvesen.no/ws/no/vegvesen/kjoretoy/felles/datautlevering/enkeltoppslag/kjoretoydata';
 const CORS_PROXY = 'https://corsproxy.io/?';
 
 /**
@@ -31,14 +31,14 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
     const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
     
     const headers = {
-      'SVV-Authorization': `${apiKey.substring(0, 5)}***`,
+      'SVV-Authorization': `Apikey ${apiKey.substring(0, 5)}***`,
       'Accept': 'application/json'
     };
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'SVV-Authorization': apiKey,
+        'SVV-Authorization': `Apikey ${apiKey}`,
         'Accept': 'application/json'
       }
     });
