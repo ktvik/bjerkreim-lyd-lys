@@ -5,10 +5,11 @@ import { decryptData } from './encryptionService';
 
 const FALLBACK_KEY = import.meta.env.VITE_APP_SVV_API_KEY || '6bb68ee3-15d1-4106-8501-b39a3d889197';
 const BASE_URL = 'https://akfell-datautlevering.atlas.vegvesen.no/enkeltoppslag/kjoretoydata';
+const CORS_PROXY = 'https://corsproxy.io/?';
 
 /**
  * Henter kjøretøydata fra Statens Vegvesen.
- * Merk: Kan kreve en CORS-proxy i nettleseren.
+ * Merk: Bruker nå en CORS-proxy for å tillate oppslag fra GitHub Pages.
  */
 export const fetchVehicleData = async (regNr: string): Promise<any> => {
   const cleanRegNr = regNr.toUpperCase().replace(/\s/g, '');
@@ -26,7 +27,9 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
   }
   
   try {
-    const url = `${BASE_URL}?kjennemerke=${cleanRegNr}`;
+    const targetUrl = `${BASE_URL}?kjennemerke=${cleanRegNr}`;
+    const url = `${CORS_PROXY}${encodeURIComponent(targetUrl)}`;
+    
     const headers = {
       'SVV-Authorization': `${apiKey.substring(0, 5)}***`,
       'Accept': 'application/json'
@@ -48,6 +51,7 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
         source: 'SVV API',
         details: {
           url,
+          targetUrl,
           status: response.status,
           statusText: response.statusText,
           responseBody: errorData,
@@ -92,9 +96,10 @@ export const fetchVehicleData = async (regNr: string): Promise<any> => {
       details: {
         error: error.message,
         stack: error.stack,
-        hint: isNetworkError ? 'Sjekk CORS-innstillinger eller internett.' : 'Internt system-kall feilet',
+        hint: isNetworkError ? 'Sjekk CORS-innstillinger, internett, eller om CORS-proxyen er nede.' : 'Internt system-kall feilet',
         regNr: cleanRegNr,
-        baseUrl: BASE_URL
+        baseUrl: BASE_URL,
+        proxyUrl: CORS_PROXY
       }
     });
     throw error;
