@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import './App.css';
 
 import Header from './components/Header';
+import Login from './components/Login';
 import InventoryTab from './components/InventoryTab';
 import MissionTab from './components/MissionTab';
 import HistoryTab from './components/HistoryTab';
@@ -39,6 +41,8 @@ export default function App() {
   const [errorLogs, setErrorLogs] = useState<AppError[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ stockThreshold: 20 });
   const [currentUser, setCurrentUser] = useState<Personnel | null>(null); 
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const DEFAULT_PERMISSIONS: Permission = { 
     inventory: 'full', mission: 'full', calendar: 'full', history: 'full', personnel: 'full', isAdmin: false 
@@ -49,7 +53,18 @@ export default function App() {
   };
 
   const userRole = useMemo(() => {
-    if (!currentUser || !currentUser.groupId) return { ...DEFAULT_PERMISSIONS, isAdmin: true };
+    const HIDDEN_PERMISSIONS: Permission = {
+      inventory: 'skjult',
+      mission: 'skjult',
+      calendar: 'skjult',
+      history: 'skjult',
+      personnel: 'skjult',
+      isAdmin: false
+    };
+
+    if (!firebaseUser || !currentUser) return HIDDEN_PERMISSIONS;
+
+    if (!currentUser.groupId) return { ...DEFAULT_PERMISSIONS, isAdmin: true };
     const group = groups.find(g => g.id === currentUser.groupId);
     return (group ? { ...DEFAULT_PERMISSIONS, ...group.permissions, isAdmin: group.isAdmin } : { 
       inventory: 'les', 
@@ -59,7 +74,29 @@ export default function App() {
       personnel: 'skjult', 
       isAdmin: false 
     }) as Permission;
-  }, [currentUser, groups]);
+  }, [firebaseUser, currentUser, groups]);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (firebaseUser && personnel.length > 0) {
+      const match = personnel.find(p => p.email?.toLowerCase() === firebaseUser.email?.toLowerCase());
+      if (match) {
+        setCurrentUser(match);
+      } else {
+        setCurrentUser(null);
+      }
+    } else if (!firebaseUser) {
+      setCurrentUser(null);
+    }
+  }, [firebaseUser, personnel]);
 
   useEffect(() => {
     const handleGlobalError = (message: string | Event, source?: string, lineno?: number, colno?: number, error?: Error) => {
@@ -254,6 +291,18 @@ export default function App() {
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Login />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 pb-20">

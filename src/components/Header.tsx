@@ -1,7 +1,8 @@
 import React from 'react';
-import { Package, FileText, History, Database, Cloud, User, Calendar, Terminal, LucideIcon } from 'lucide-react';
+import { Package, FileText, History, Database, Cloud, User, Calendar, Terminal, LucideIcon, LogOut } from 'lucide-react';
 import { CompanyLogo } from './CompanyLogo';
 import { Personnel, Permission } from '../types';
+import { logout } from '../services/authService';
 
 interface HeaderProps {
   activeTab: string;
@@ -67,15 +68,17 @@ export default function Header({
         <div className="flex items-center gap-6">
            <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
               <User className="w-4 h-4 text-slate-300" />
-              <select 
-                className="bg-transparent text-[11px] font-black uppercase outline-none appearance-none cursor-pointer text-slate-600"
-                value={currentUser?.id || ''} 
-                onChange={(e) => setCurrentUser(personnel.find(p => p.id === e.target.value) || null)}
-              >
-                <option value="">Se som Admin (Alt)</option>
-                {personnel.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <span className="text-[11px] font-black uppercase text-slate-600">
+                {currentUser ? currentUser.name : 'Gjest'}
+              </span>
            </div>
+           <button
+              onClick={() => logout()}
+              title="Logg ut"
+              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+           >
+              <LogOut className="w-5 h-5" />
+           </button>
            <button onClick={exportFullBackup} title="Last ned backup" className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:bg-black hover:text-white transition-all">
               <Database className="w-5 h-5" />
            </button>
